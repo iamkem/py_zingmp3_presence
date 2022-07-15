@@ -20,12 +20,17 @@ import time
 
 from pypresence import Presence
 
-song_test_url = "https://mp3.zing.vn/xhr/media/get-source?type=audio&key=ZHxmyZmsdJXCcNhyGyFGLmTZgQNJiLpWp"
-client_id = "997427282606047282"
+base_url = "https://mp3.zing.vn/xhr/media/get-source?type=audio&key="
+
+client_id = "your client id here"
+
+
+def song_url(key):
+    return f'{base_url}{key}'
 
 
 def get_zing_song_data():
-    with requests.get(song_test_url) as req:
+    with requests.get(song_url("key of song")) as req:
         res = req.json()
         data = res['data']
         print(data)
