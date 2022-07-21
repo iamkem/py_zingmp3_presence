@@ -15,14 +15,19 @@
 #
 # # See PyCharm help at https://www.jetbrains.com/help/pycharm/
 
+import asyncio
+import websockets
 import requests
 import time
 
 from pypresence import Presence
 
+HOST = "localhost"
+PORT = 8765
+
 base_url = "https://mp3.zing.vn/xhr/media/get-source?type=audio&key="
 
-client_id = "your client id here"
+client_id = "997427282606047282"
 
 
 def song_url(key):
@@ -30,7 +35,7 @@ def song_url(key):
 
 
 def get_zing_song_data():
-    with requests.get(song_url("key of song")) as req:
+    with requests.get(song_url("ZHxmyZmsdJXCcNhyGyFGLmTZgQNJiLpWp")) as req:
         res = req.json()
         data = res['data']
         print(data)
@@ -48,5 +53,16 @@ def start():
         time.sleep(15)
 
 
+async def receive(websocket):
+    async for message in websocket:
+        print(message)
+        # await websocket.send(message)
+
+
+async def main():
+    async with websockets.serve(receive, HOST, PORT):
+        await asyncio.Future()  # run forever
+
+
 if __name__ in '__main__':
-    start()
+    asyncio.run(main())
