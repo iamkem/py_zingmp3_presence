@@ -1,20 +1,3 @@
-# # This is a sample Python script.
-#
-# # Press ⌃R to execute it or replace it with your code.
-# # Press Double ⇧ to search everywhere for classes, files, tool windows, actions, and settings.
-#
-#
-# def print_hi(name):
-#     # Use a breakpoint in the code line below to debug your script.
-#     print(f'Hi, {name}')  # Press ⌘F8 to toggle the breakpoint.
-#
-#
-# # Press the green button in the gutter to run the script.
-# if __name__ == '__main__':
-#     print_hi('PyCharm')
-#
-# # See PyCharm help at https://www.jetbrains.com/help/pycharm/
-
 import asyncio
 import websockets
 import requests
@@ -35,6 +18,12 @@ PORT = 8765
 
 base_url = "https://mp3.zing.vn"
 
+RPC.connect()
+
+
+def duration_to_mill(duration):
+    return duration * 1000
+
 
 def song_url(key):
     return f'{base_url}/xhr/media/get-source?type=audio&key={key}'
@@ -43,33 +32,44 @@ def song_url(key):
 def get_zing_song_data(key):
     with requests.get(song_url(key)) as req:
         res = req.json()
-        data = res['data']
-        return {"state": data['title'], "details": data['artists_names']}
+        return res['data']
 
 
-def start_rpc(data):
-    RPC.connect()
+def update_status(data):
+    if data:
+        if data['playing']:
+            song_data = {}
+            try:
+                res = get_zing_song_data(data['key'])
+                now = int(round((time.time() - data['currentTime']) * 1000))
+                time_left = now + duration_to_mill(res['duration'])
+                song_data.update({
+                    "state": res['title'],
+                    "details": res['artists_names'] or res['performer'] or 'Unknown',
+                    "start": now,
+                    "end": time_left,
+                    "large_image": res['thumbnail'],
+                    "small_image": 'logo600',
+                    "buttons": [
+                        {
+                            "label": "Play on ZingMp3",
+                            "url": f'{base_url}{res["link"]}'
+                        }
+                    ]
+                })
+            except requests.HTTPError:
+                print('request error!')
 
-    stt = RPC.update(**data, large_image='logo600')
-    print(stt)
-
-
-def cancel_prc():
-    RPC.close()
+            status = RPC.update(**song_data)
+            print(status)
+        else:
+            RPC.clear()
 
 
 async def echo(websocket):
     async for message in websocket:
         try:
-            data = json.loads(message)
-            if data['playing']:
-                print('playing')
-                song_data = get_zing_song_data(data['key'])
-                start_rpc(song_data)
-            else:
-                print('not playing')
-                cancel_prc()
-
+            update_status(json.loads(message))
         except json.JSONDecodeError:
             print('decode error!')
         except AttributeError:
