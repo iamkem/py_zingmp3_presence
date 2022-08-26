@@ -1,4 +1,3 @@
-import rumps
 import asyncio
 import websockets
 import requests
@@ -8,6 +7,9 @@ import nest_asyncio
 
 from pypresence import Presence
 
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
+
 nest_asyncio.apply()
 
 client_id = 997427282606047282
@@ -16,14 +18,10 @@ RPC = Presence(client_id)
 
 RPC.connect()
 
-HOST = "localhost"
-PORT = 8765
-
 base_url = "https://mp3.zing.vn"
 
 
-def duration_to_mill(duration):
-    return duration * 1000
+def duration_to_mill(duration): return duration * 1000
 
 
 def get_zing_song_data(data):
@@ -79,62 +77,76 @@ def update_status(data):
             RPC.clear()
 
 
-async def echo(websocket):
-    try:
-        message = await websocket.recv()
-        print(message)
+class ZingMPre:
+    def __init__(self, host, port):
+        self.config = {
+            'icon': 'assets/logo600.png',
+            'about_button': 'About',
+            'quit_button': 'Quit'
+        }
+        self.host = host
+        self.port = port
+        self.qt_loop_task = asyncio.ensure_future(self.qt_loop())  # task will work alongside with the server
+        self.loop = asyncio.get_event_loop()
+        self.start_server = websockets.serve(self.echo, self.host, self.port, loop=self.loop)
+
+        self.app = QApplication([])
+        self.app.setQuitOnLastWindowClosed(False)
+
+        self.menu = QMenu()
+        self.tray = QSystemTrayIcon()
+
+        # Create the icon
+        icon = QIcon(self.config['icon'])
+        # Create the tray
+        self.tray.setIcon(icon)
+        self.tray.setVisible(True)
+
+        # Create the menu
+        self.about_button = QAction(self.config['about_button'])
+        # self.about_button.trigger()
+        self.menu.addAction(self.about_button)
+
+        # Add a Quit option to the menu.
+        self.quit_menu = QAction(self.config['quit_button'])
+        self.quit_menu.triggered.connect(self.on_quit)
+        self.menu.addAction(self.quit_menu)
+
+        # Add the menu to the tray
+        self.tray.setContextMenu(self.menu)
+
+    def on_quit(self):
+        self.app.quit()
+
+    async def echo(self, websocket):
         try:
-            update_status(json.loads(message))
-        except json.JSONDecodeError:
-            print('decode error!')
-        except AttributeError:
-            print('no key has found!')
-        except requests.HTTPError:
-            print('request error!')
-    except websockets.ConnectionClosed:
-        print('connection closed!')
+            message = await websocket.recv()
+            print(message)
+            try:
+                update_status(json.loads(message))
+            except json.JSONDecodeError:
+                print('decode error!')
+            except AttributeError:
+                print('no key has found!')
+            except requests.HTTPError:
+                print('request error!')
+        except websockets.ConnectionClosed:
+            print('connection closed!')
 
+    async def qt_loop(self):
+        while 1:
+            self.app.processEvents()  # allow Qt loop to work a bit
+            await asyncio.sleep(0)  # allow asyncio loop to work a bit
 
-async def start_server():
-    async with websockets.serve(echo, HOST, PORT):
-        print('server started!')
-        await asyncio.Future()
-
-
-class ZingMPre(object):
-    def __init__(self):
-        self.cfg = {
-            'app_name': 'ZingMp3 Presence',
-            'sub_name': 'ZingMPre',
-            'app_icon': 'assets/logo600.png',
-            'quit_title': 'Quit ZingMPre',
-            'app_version': 'ZingMPre v1.2-beta',
-        }
-
-        self.version_button = rumps.MenuItem(self.cfg['app_version'], callback=None, icon=self.cfg['app_icon'])
-        self.connection_status_button = rumps.MenuItem('Extension - Not Connected', callback=None)
-        self.about_button = rumps.MenuItem('About', callback=self.on_about)
-        self.quit_button = rumps.MenuItem(self.cfg['quit_title'], callback=None)
-
-        self.app = rumps.App(
-            name=self.cfg['app_name'],
-            icon=self.cfg['app_icon'],
-            menu=[self.version_button, self.connection_status_button, self.about_button],
-            quit_button=self.quit_button,
-        )
-
-        self.alert_data = {
-            'title': 'About',
-            'message': 'author by @badkem',
-            'icon_path': self.cfg['app_icon'],
-        }
-
-    def on_about(self, sender):
-        rumps.alert(**self.alert_data)
-
-    def run(self):
-        self.app.run()
+    def run_app(self):
+        try:
+            self.loop.run_until_complete(self.start_server)
+            self.loop.run_forever()
+        finally:
+            self.loop.run_until_complete(self.loop.shutdown_asyncgens())
+            self.loop.close()
 
 
 if __name__ in '__main__':
-    asyncio.run(start_server())
+    zm = ZingMPre('localhost', 8765)
+    zm.run_app()
