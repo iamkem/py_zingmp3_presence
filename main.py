@@ -81,6 +81,9 @@ class ZingMPre:
     def __init__(self, host, port):
         self.config = {
             'icon': 'assets/logo600.png',
+            'status_bar': {
+                'status': 'offline',
+            },
             'about_button': 'About',
             'quit_button': 'Quit'
         }
@@ -98,14 +101,26 @@ class ZingMPre:
 
         # Create the icon
         icon = QIcon(self.config['icon'])
+
         # Create the tray
         self.tray.setIcon(icon)
         self.tray.setVisible(True)
 
         # Create the menu
+        self.status_button = QAction(self.config['status_bar']['status'])
+        self.status_button.setIcon(icon)
+        self.status_button.setDisabled(True)
+        self.menu.addAction(self.status_button)
+
         self.about_button = QAction(self.config['about_button'])
-        # self.about_button.trigger()
+        self.about_button.triggered.connect(self.on_about)
         self.menu.addAction(self.about_button)
+        # for about action
+        self.msg = QMessageBox()
+        self.msg.setIcon(self.msg.Icon.Critical)
+        self.msg.setWindowTitle('Information')
+        self.msg.setText('About')
+        self.msg.setInformativeText('author by @bad_kem')
 
         # Add a Quit option to the menu.
         self.quit_menu = QAction(self.config['quit_button'])
@@ -115,7 +130,14 @@ class ZingMPre:
         # Add the menu to the tray
         self.tray.setContextMenu(self.menu)
 
+    def update_status_bar(self, status):
+        self.status_button.setText(status)
+
+    def on_about(self):
+        self.msg.exec_()
+
     def on_quit(self):
+        self.loop.stop()
         self.app.quit()
 
     async def echo(self, websocket):
@@ -136,11 +158,12 @@ class ZingMPre:
     async def qt_loop(self):
         while 1:
             self.app.processEvents()  # allow Qt loop to work a bit
-            await asyncio.sleep(0)  # allow asyncio loop to work a bit
+            await asyncio.sleep(0.01)  # allow asyncio loop to work a bit
 
     def run_app(self):
         try:
             self.loop.run_until_complete(self.start_server)
+            print('started server!')
             self.loop.run_forever()
         finally:
             self.loop.run_until_complete(self.loop.shutdown_asyncgens())
