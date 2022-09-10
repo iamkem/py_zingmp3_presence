@@ -8,6 +8,8 @@ import time
 import json
 import nest_asyncio
 
+import logo_qrc
+
 from pypresence import Presence
 
 from PyQt5.QtGui import *
@@ -91,19 +93,28 @@ class Server(QObject):
             print('server started!')
             self.loop.run_forever()
         finally:
-            self.loop.run_until_complete(self.loop.shutdown_asyncgens())
-            self.loop.close()
             self.finished.emit()
 
-    def stop_event_loop(self):
-        self.loop.close()
+            self.loop.run_until_complete(self.loop.shutdown_asyncgens())
+            self.loop.close()
+
+    def stop_server(self):
+        print('exit')
+        self.loop.stop()
+        self.finished.emit()
+        # self.loop.stop()
 
 
-class ZingMPre:
-    def __init__(self):
+class ZingMPre(QMainWindow):
+    def __init__(self, parent=None):
+        self.app = QApplication(sys.argv)
+        self.app.setQuitOnLastWindowClosed(False)
+
+        super().__init__(parent)
+
         self.config = {
             'client_id': 997427282606047282,
-            'icon': 'assets/logo600.png',
+            'icon': ':assets/logo600.png',
             'app_version_info': f'ZingMPre v{1.3}',
             'status_bar': {
                 'status': f'Extension - {Status.Offline.name}',
@@ -117,9 +128,6 @@ class ZingMPre:
         # Threading server
         self.thread = QThread()
         self.server = Server('localhost', 8765)
-
-        self.app = QApplication(sys.argv)
-        self.app.setQuitOnLastWindowClosed(False)
 
         self.menu = QMenu()
         self.tray = QSystemTrayIcon()
@@ -199,6 +207,10 @@ class ZingMPre:
         self.msg.exec_()
 
     def on_quit(self):
+        self.thread.finished.connect(
+            lambda: self.server.stop_server()
+        )
+
         self.app.quit()
 
     def run_app(self):
@@ -209,10 +221,9 @@ class ZingMPre:
 
         # Connect signals and slots
         self.thread.started.connect(self.server.run_server)
-        self.thread.finished.connect(self.thread.deleteLater)
 
-        self.server.finished.connect(self.server.stop_event_loop)
         self.server.finished.connect(self.thread.quit)
+        self.thread.finished.connect(self.thread.deleteLater)
         self.server.finished.connect(self.server.deleteLater)
 
         self.server.data.connect(self.update_status)
